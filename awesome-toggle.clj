@@ -12,15 +12,18 @@
 (set! *data-readers*
       (assoc *data-readers* 'java/zoned read-zoned))
 
-(defn save-state [filename state]
-      (spit filename (pr-str state))
-      state)
+(defn save-state
+      ([filename]
+       (save-state filename {:next-mode :concentrate :last-update #java/zoned["1970-01-01T01:00+01:00[Europe/Stockholm]"]}))
+      ([filename state]
+       (spit filename (pr-str state))
+       state))
 
 (defn load-state [filename]
       (try
         (edn/read-string {:readers *data-readers*} (slurp filename))
         (catch Exception e
-          (save-state filename {:state :concentrate :last-update #java/zoned["1970-01-01T01:00+01:00[Europe/Stockholm]"]}))))
+          (save-state filename))))
 
 ; force concentrate first time on workdays
 (defn now []
