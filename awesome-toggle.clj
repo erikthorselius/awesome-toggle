@@ -52,12 +52,11 @@
           (. equals (. date-time toLocalDate))
           (not)))
 
-(defn force-concentrate?
-      [state]
+(defn force-concentrate? [{:keys [last-update] :as state}]
       (if (and
-            (not-today? (:last-update state))
+            (not-today? last-update)
             (workday?))
-        (assoc state :state :off)
+        (assoc state :next-mode :concentrate)
         state))
 
 ; commands
@@ -73,16 +72,18 @@
 (defn night-light []
       (shell/sh "hueadm" "light" "1" "red" "bri=100"))
 
-(defn toggle [state]
-      (let [update-state-to (partial assoc state :state)]
-           (case (:state state)
-                 :off (update-state-to :concentrate)
-                 :concentrate (update-state-to :relax)
-                 :relax (update-state-to :night-light)
-                 :night-light (update-state-to :off))))
+(defn- update-mode-to [state next-mode]
+       (assoc state :next-mode next-mode))
 
-(defn run-command [state]
-      (do (case (:state state)
+(defn toggle [{:keys [next-mode] :as state}]
+      (case next-mode
+            :off (update-mode-to state :concentrate)
+            :concentrate (update-mode-to state :relax)
+            :relax (update-mode-to state :night-light)
+            :night-light (update-mode-to state :off)))
+
+(defn run-command [{:keys [next-mode] :as state}]
+      (do (case next-mode
                 :off (off)
                 :concentrate (concentrate)
                 :relax (relax)
@@ -94,7 +95,7 @@
 
 (->> (load-state "/tmp/awesome-toggle.tmp")
      (force-concentrate?)
-     (toggle)
      (run-command)
+     (toggle)
      (last-update)
      (save-state "/tmp/awesome-toggle.tmp"))
