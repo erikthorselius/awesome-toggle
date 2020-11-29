@@ -12,9 +12,10 @@
 (set! *data-readers*
       (assoc *data-readers* 'java/zoned read-zoned))
 
+(def default-config {:next-mode :concentrate :last-update #java/zoned["1970-01-01T01:00+01:00[Europe/Stockholm]"]})
 (defn save-state
       ([filename]
-       (save-state filename {:next-mode :concentrate :last-update #java/zoned["1970-01-01T01:00+01:00[Europe/Stockholm]"]}))
+       (save-state filename default-config))
       ([filename state]
        (spit filename (pr-str state))
        state))
