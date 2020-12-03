@@ -31,6 +31,12 @@
       (-> (java.time.ZonedDateTime/now)
           (.withZoneSameInstant (java.time.ZoneId/of "Europe/Stockholm"))))
 
+(defn after-work-time []
+      (let [aw-time (java.time.LocalTime/of 16 00)]
+           (-> (java.time.ZonedDateTime/now)
+               (. with aw-time)
+               (.withZoneSameInstant (java.time.ZoneId/of "Europe/Stockholm")))))
+
 (defn- day-of-week [date-time]
        (-> date-time
            (.getDayOfWeek)
@@ -41,13 +47,17 @@
             "SUNDAY" false
             "SATURDAY" false
             true))
-
+(defn spy [in]
+      (println in)
+      in)
 (defn- timespan [from to date-time]
-      (->> date-time
-           (.getHour)
-           (>= from to)))
+       (<= from (. date-time getHour) to))
 (def morning? (partial timespan 6 12))
-(def after-work (partial timespan 16 23))
+(def after-work? (partial timespan 16 23))
+
+(defn is-before? [last-update, aw-time]
+      (. last-update isBefore aw-time))
+
 (defn not-today? [last-update, now]
       (let [last-update-l (. last-update toLocalDate)]
            (-> now
@@ -64,9 +74,11 @@
              state)))
 
 (defn force-relax? [{:keys [last-update] :as state}]
-      (if (after-work (now))
+      (if (and (after-work? (now))
+               (is-before? last-update (after-work-time)))
         (assoc state :next-mode :relax)
         state))
+
 ; commands
 (defn concentrate []
       (shell/sh "hueadm" "light" "1" "white" "sat=53" "hue=33016" "bri=254" "ct=233"))
@@ -101,10 +113,12 @@
 (defn last-update [state]
       (assoc state :last-update (now)))
 
+
 (let [config-file "/tmp/awesome-toggle.tmp"]
-     (->> (load-state config-file)
-          (force-concentrate?)
-          (run-command)
-          (toggle)
-          (last-update)
-          (save-state config-file)))
+       (->> (load-state config-file)
+            (force-concentrate?)
+            (force-relax?)
+            (run-command)
+            (toggle)
+            (last-update)
+            (save-state config-file)))
