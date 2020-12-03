@@ -31,35 +31,42 @@
       (-> (java.time.ZonedDateTime/now)
           (.withZoneSameInstant (java.time.ZoneId/of "Europe/Stockholm"))))
 
-(defn- day-of-week []
-       (-> (now)
+(defn- day-of-week [date-time]
+       (-> date-time
            (.getDayOfWeek)
            (.toString)))
 
-(defn workday? []
-      (case (day-of-week)
+(defn workday? [date-time]
+      (case (day-of-week date-time)
             "SUNDAY" false
             "SATURDAY" false
             true))
 
-(defn morning? []
-      (->> (now)
+(defn- timespan [from to date-time]
+      (->> date-time
            (.getHour)
-           (>= 6 12)))
-
-(defn not-today? [date-time]
-      (-> (now)
-          (. toLocalDate)
-          (. equals (. date-time toLocalDate))
-          (not)))
+           (>= from to)))
+(def morning? (partial timespan 6 12))
+(def after-work (partial timespan 16 23))
+(defn not-today? [last-update, now]
+      (let [last-update-l (. last-update toLocalDate)]
+           (-> now
+               (. toLocalDate)
+               (. equals last-update-l)
+               (not))))
 
 (defn force-concentrate? [{:keys [last-update] :as state}]
-      (if (and
-            (not-today? last-update)
-            (workday?))
-        (assoc state :next-mode :concentrate)
-        state))
+      (let [now (now)]
+           (if (and
+                 (not-today? last-update now)
+                 (workday? now))
+             (assoc state :next-mode :concentrate)
+             state)))
 
+(defn force-relax? [{:keys [last-update] :as state}]
+      (if (after-work (now))
+        (assoc state :next-mode :relax)
+        state))
 ; commands
 (defn concentrate []
       (shell/sh "hueadm" "light" "1" "white" "sat=53" "hue=33016" "bri=254" "ct=233"))
@@ -94,9 +101,10 @@
 (defn last-update [state]
       (assoc state :last-update (now)))
 
-(->> (load-state "/tmp/awesome-toggle.tmp")
-     (force-concentrate?)
-     (run-command)
-     (toggle)
-     (last-update)
-     (save-state "/tmp/awesome-toggle.tmp"))
+(let [config-file "/tmp/awesome-toggle.tmp"]
+     (->> (load-state config-file)
+          (force-concentrate?)
+          (run-command)
+          (toggle)
+          (last-update)
+          (save-state config-file)))
